@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Macho Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            pointer-events: auto;
+            max-width: 220px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 3px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4d4d, #ff9e4d);
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        #train-btn {
+            align-self: center;
+            background: linear-gradient(135deg, #ff4d4d, #c0392b);
+            color: white;
+            border: none;
+            padding: 20px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 40px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #train-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+
+        /* Side Buttons */
+        .side-btn {
+            position: absolute;
+            right: 20px;
+            width: 90px;
+            color: white;
+            border: none;
+            padding: 8px 0;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 50;
+            text-align: center;
+        }
+        .side-btn:active { transform: scale(0.95); }
+
+        #shop-btn {
+            top: 20px;
+            background: #27ae60;
+        }
+        
+        #skin-btn {
+            top: 65px;
+            background: #8e44ad;
+        }
+
+        /* Modals */
+        .modal-window {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            background: rgba(20, 20, 25, 0.95);
+            border: 2px solid #ffcc00;
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+            pointer-events: auto;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        /* Tabs */
+        .tab-container {
+            display: flex;
+            border-bottom: 1px solid #444;
+            margin-bottom: 15px;
+        }
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 10px;
+            color: #888;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            color: #ccc;
+        }
+        .tab-btn.active {
+            color: #fff;
+            border-bottom-color: #a855f7; /* Purple accent */
+        }
+
+        /* Bonus Section */
+        .bonus-section {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 20px;
+        }
+        .bonus-btn {
+            background: linear-gradient(to bottom, #f39c12, #d35400);
+            border: 1px solid #e67e22;
+            border-radius: 8px;
+            padding: 8px 4px;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            text-align: center;
+        }
+        .bonus-btn:disabled {
+            background: #555;
+            border-color: #444;
+            color: #888;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .bonus-btn span.amt {
+            font-size: 14px;
+            color: #fffae6;
+        }
+
+        .shop-item, .skin-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #333;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+        .buy-btn, .select-btn {
+            background: #ffcc00;
+            color: black;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            min-width: 80px;
+        }
+        .buy-btn:disabled, .select-btn:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+        .select-btn.active {
+            background: #2ecc71;
+            color: white;
+            cursor: default;
+        }
+
+        .floating-text {
+            position: absolute;
+            color: #ffcc00;
+            font-weight: bold;
+            font-size: 20px;
+            animation: floatUp 1s forwards;
+            pointer-events: none;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            width: 100%;
+            text-align: center;
+            left: 0;
+            top: 40%;
+            z-index: 200;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-80px) scale(1.2); opacity: 0; }
+        }
+
+        /* Particles container */
+        #particles {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Container -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        <div class="hud-panel">
+            <h2 class="text-base font-bold mb-1 text-yellow-400">マッスルステータス</h2>
+            <div class="stat-row">
+                <span>称号:</span>
+                <span id="rank-text" class="font-bold text-yellow-200">ガリガリ</span>
+            </div>
+            <div class="stat-row">
+                <span>体重:</span>
+                <span id="weight-text">40 kg</span>
+            </div>
+            <div class="stat-row">
+                <span>Lv:</span>
+                <span id="level-text">1</span>
+            </div>
+            <div class="stat-row" style="color: #4cd137; font-weight: bold; margin-top: 3px; border-top: 1px solid #444; padding-top: 3px;">
+                <span>所持金:</span>
+                <span id="money-text">0 円</span>
+            </div>
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#aaa; margin-top:3px;">
+                    <span>経験値(XP)</span>
+                    <span id="exp-text">0 / 10</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="exp-bar" class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <button id="shop-btn" class="side-btn">ショップ</button>
+        <button id="skin-btn" class="side-btn">スキン</button>
+
+        <button id="train-btn">トレーニング！</button>
+    </div>
+
+    <!-- Shop Modal -->
+    <div id="shop-modal" class="modal-window">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-yellow-400">マッスルショップ</h2>
+            <button class="close-btn" id="close-shop">×</button>
+        </div>
+        
+        <!-- Bonus Section -->
+        <div class="bonus-section" id="bonus-container">
+            <!-- Buttons will be injected here -->
+        </div>
+
+        <div id="shop-items">
+            <!-- Items will be generated here -->
+        </div>
+    </div>
+
+    <!-- Skin Modal -->
+    <div id="skin-modal" class="modal-window">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-purple-400">スキン変更</h2>
+            <button class="close-btn" id="close-skin">×</button>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tab-container">
+            <button class="tab-btn active" id="tab-body" onclick="switchSkinTab('body')">マッスラー</button>
+            <button class="tab-btn" id="tab-barbell" onclick="switchSkinTab('barbell')">バーベル</button>
+        </div>
+
+        <div id="skin-items">
+            <!-- Skins will be generated here -->
+        </div>
+    </div>
+
+    <div id="particles"></div>
+
+    <!-- Import Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+        // --- Game State & Save System ---
+        const defaultState = {
+            level: 1,
+            exp: 1,
+            expToNext: 10,
+            money: 0, 
+            xpPerRep: 1, 
+            muscleScale: 1.0, 
+            lastDaily: null, 
+            receivedLv10Bonus: false,
+            lastTimeBonus: 0, 
+            hasProtein: false, 
+            currentSkin: 'default', // Body Skin ID
+            currentBarbellSkin: 'default', // Barbell Skin ID
+            unlockedBarbellSkins: ['default'], // Array of unlocked barbell skins
+            // Transient states
+            isLifting: false,
+            liftPhase: 0, 
+            reps: 0
+        };
+
+        // Load or Init State
+        let state = {...defaultState};
+        const savedData = localStorage.getItem('macho_save_v1');
+        if (savedData) {
+            try {
+                const parsed = JSON.parse(savedData);
+                state = { ...state, ...parsed };
+                
+                if (parsed.hasNeonSkin && !state.unlockedBarbellSkins.includes('neon')) {
+                    state.unlockedBarbellSkins.push('neon');
+                }
+                // Check if old saves have undefined barbell skin
+                if (!state.currentBarbellSkin) state.currentBarbellSkin = 'default';
+
+                state.isLifting = false;
+                state.liftPhase = 0;
+            } catch(e) { console.error("Save load failed", e); }
+        }
+
+        function saveGame() {
+            const toSave = {
+                level: state.level,
+                exp: state.exp,
+                expToNext: state.expToNext,
+                money: state.money,
+                xpPerRep: state.xpPerRep,
+                muscleScale: state.muscleScale,
+                lastDaily: state.lastDaily,
+                receivedLv10Bonus: state.receivedLv10Bonus,
+                lastTimeBonus: state.lastTimeBonus,
+                hasProtein: state.hasProtein,
+                currentSkin: state.currentSkin,
+                currentBarbellSkin: state.currentBarbellSkin,
+                unlockedBarbellSkins: state.unlockedBarbellSkins
+            };
+            localStorage.setItem('macho_save_v1', JSON.stringify(toSave));
+        }
+
+        // Shop Items
+        let shopItems = [
+            { id: 'straps', name: 'リストストラップ', price: 500, xpBonus: 1, desc: 'XP効率 +1' },
+            { id: 'belt', name: 'パワーベルト', price: 1500, xpBonus: 5, desc: 'XP効率 +5' },
+            { id: 'creatine', name: 'クレアチン', price: 2500, xpBonus: 8, desc: 'XP効率 +8' }, 
+            { id: 'preworkout', name: 'プレワークアウト', price: 3000, xpBonus: 10, desc: 'XP効率 +10' }, 
+            { id: 'protein', name: 'プロテイン', price: 5000, xpBonus: 0, desc: 'XP効率 ×1.1' },
+            { id: 'log_skin', name: '丸太バーベル', price: 8000, xpBonus: 0, desc: 'ワイルドだろぉ？' },
+            { id: 'trainer', name: 'パーソナルトレーナー', price: 10000, xpBonus: 50, desc: 'XP効率 +50' }, 
+            { id: 'steroids', name: '謎のサプリ', price: 20000, xpBonus: 130, desc: 'XP効率 +130' }
+        ];
+
+        // Skin Config
+        const skins = [
+            { id: 'default', name: 'ノーマル', level: 1, skinColor: 0xeebb99, shortsColor: 0x2255ee, metalness: 0.1, roughness: 0.4, emissive: 0x000000 },
+            { id: 'tanned', name: '日焼け', level: 5, skinColor: 0xaa7755, shortsColor: 0xff3333, metalness: 0.1, roughness: 0.4, emissive: 0x000000 },
+            { id: 'oiled', name: 'オイルボディ', level: 10, skinColor: 0xc68c53, shortsColor: 0x111111, metalness: 0.3, roughness: 0.15, emissive: 0x000000 },
+            { id: 'wild', name: 'ワイルド', level: 15, skinColor: 0x8d5524, shortsColor: 0x5d4037, metalness: 0.0, roughness: 0.9, emissive: 0x000000 },
+            { id: 'alien', name: '異星人', level: 20, skinColor: 0x33cc33, shortsColor: 0x8800ff, metalness: 0.2, roughness: 0.3, emissive: 0x003300 },
+            { id: 'steel', name: '鋼の肉体', level: 30, skinColor: 0xaaaaaa, shortsColor: 0x333333, metalness: 0.7, roughness: 0.2, emissive: 0x111111 },
+            { id: 'gold', name: 'ゴールデン', level: 50, skinColor: 0xffcc00, shortsColor: 0xffffff, metalness: 1.0, roughness: 0.15, emissive: 0x664400 },
+            // ★追加: 霊長類最強スキン
+            { id: 'saori', name: '霊長類最強', level: 100, skinColor: 0xffe0bd, shortsColor: 0xed2939, metalness: 0.2, roughness: 0.4, emissive: 0x110000 }
+        ];
+
+        const barbellSkins = [
+            { id: 'default', name: '鉄の塊', type: 'metal' },
+            { id: 'log', name: '丸太', type: 'log', price: 8000 },
+            { id: 'neon', name: 'ネオン', type: 'neon', price: 5000 }, 
+            { id: 'gold', name: '黄金のバーベル', type: 'gold', level: 40 },
+            { id: 'rainbow', name: 'ゲーミング', type: 'rainbow', level: 70 },
+            { id: 'monochrome', name: 'カオス', type: 'monochrome', level: 90 }
+        ];
+
+        const titles = [
+            "ガリガリ", "一般人", "細マッチョ", "駆け出しマッスラー", "ボディビルダー", 
+            "ゴリラ", "筋肉魔神", "人間プロテイン製造機", "歩く山脈", "吉田沙保里"
+        ];
+
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222); 
+        scene.fog = new THREE.Fog(0x222222, 10, 40);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.4, 3.8);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0, 1.1, 0);
+        controls.maxPolarAngle = Math.PI / 2 - 0.05;
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(3, 8, 5);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.bias = -0.0001;
+        scene.add(dirLight);
+
+        const backLight = new THREE.SpotLight(0x4455ff, 2);
+        backLight.position.set(0, 5, -5);
+        backLight.lookAt(0, 1, 0);
+        scene.add(backLight);
+
+        // --- Gym Environment ---
+        const roomGroup = new THREE.Group();
+        scene.add(roomGroup);
+
+        // Floor (Wide)
+        const floorGeo = new THREE.PlaneGeometry(30, 30);
+        const floorMat = new THREE.MeshStandardMaterial({ 
+            color: 0x333333, roughness: 0.9, metalness: 0.1 
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        roomGroup.add(floor);
+
+        // Back Wall
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.8 });
+        const backWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 15), wallMat);
+        backWall.position.set(0, 7.5, -8);
+        backWall.receiveShadow = true;
+        roomGroup.add(backWall);
+
+        // --- Macho Photo (Canvas Texture) ---
+        function createMachoPhotoTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Background (Dramatic lighting)
+            const grd = ctx.createRadialGradient(256, 100, 50, 256, 256, 400);
+            grd.addColorStop(0, '#444444');
+            grd.addColorStop(1, '#000000');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Draw Macho Figure (Silhouette)
+            ctx.fillStyle = '#eebb99'; // Skin color
+            
+            // Head
+            ctx.beginPath();
+            ctx.arc(256, 140, 35, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Torso (V-shape)
+            ctx.beginPath();
+            ctx.moveTo(190, 180); // Left shoulder
+            ctx.lineTo(322, 180); // Right shoulder
+            ctx.lineTo(280, 350); // Right hip
+            ctx.lineTo(232, 350); // Left hip
+            ctx.fill();
+
+            // Arms (Double Biceps)
+            ctx.lineWidth = 40;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#eebb99';
+            
+            // Left Arm
+            ctx.beginPath();
+            ctx.moveTo(200, 200); // Shoulder
+            ctx.lineTo(130, 200); // Elbow
+            ctx.lineTo(130, 120); // Hand
+            ctx.stroke();
+            // Left Fist
+            ctx.beginPath();
+            ctx.arc(130, 110, 25, 0, Math.PI*2);
+            ctx.fill();
+
+            // Right Arm
+            ctx.beginPath();
+            ctx.moveTo(312, 200); // Shoulder
+            ctx.lineTo(382, 200); // Elbow
+            ctx.lineTo(382, 120); // Hand
+            ctx.stroke();
+            // Right Fist
+            ctx.beginPath();
+            ctx.arc(382, 110, 25, 0, Math.PI*2);
+            ctx.fill();
+
+            // Abs definition
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(256, 220); ctx.lineTo(256, 320);
+            ctx.moveTo(230, 250); ctx.lineTo(282, 250);
+            ctx.moveTo(235, 280); ctx.lineTo(277, 280);
+            ctx.stroke();
+
+            // Trunks
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(230, 340, 52, 40);
+
+            // Legs
+            ctx.fillStyle = '#eebb99';
+            ctx.beginPath();
+            ctx.moveTo(230, 370); ctx.lineTo(230, 512); ctx.lineTo(250, 512); ctx.lineTo(250, 370);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(262, 370); ctx.lineTo(262, 512); ctx.lineTo(282, 512); ctx.lineTo(282, 370);
+            ctx.fill();
+
+            // Text
+            ctx.shadowColor="black";
+            ctx.shadowBlur=10;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold italic 60px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('LEGEND', 256, 80);
+            ctx.shadowBlur=0;
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        // --- Chaos Texture (Dynamic Canvas) ---
+        // 動的に書き換えるためのCanvasとContextを保持
+        const chaosCanvas = document.createElement('canvas');
+        chaosCanvas.width = 64;
+        chaosCanvas.height = 256;
+        const chaosCtx = chaosCanvas.getContext('2d');
+        const monochromeTexture = new THREE.CanvasTexture(chaosCanvas);
+        
+        // カオスエフェクトの更新関数
+        function updateChaosEffect(time) {
+            const width = chaosCanvas.width;
+            const height = chaosCanvas.height;
+            const ctx = chaosCtx;
+            const center = height / 2;
+
+            // 画面を少し暗くして残像を残す（フェードアウト効果）
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+
+            // 合成モードを加算にして光らせる
+            ctx.globalCompositeOperation = 'lighter';
+
+            // 中心から外側へ広がる波
+            for (let i = 0; i < 4; i++) {
+                // 時間経過で広がるオフセット
+                const speed = 100 + (i * 30);
+                const progress = (time * speed) % (height / 2);
+                const alpha = 1.0 - (progress / (height / 2)); // 外側ほど薄く
+
+                // ノイズのような揺らぎ
+                const noise = Math.sin(time * 10 + i) * 10;
+
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                
+                // 上方向への波（中心 -> 上）
+                const yUp = center - progress + noise;
+                ctx.fillRect(0, yUp, width, 4 + i);
+
+                // 下方向への波（中心 -> 下）
+                const yDown = center + progress + noise;
+                ctx.fillRect(0, yDown, width, 4 + i);
+            }
+
+            // 中心のコア（常に激しく明滅）
+            const corePulse = (Math.sin(time * 20) + 1) * 0.5;
+            const grd = ctx.createLinearGradient(0, center - 20, 0, center + 20);
+            grd.addColorStop(0, 'rgba(0,0,0,0)');
+            grd.addColorStop(0.5, `rgba(255, 255, 255, ${0.5 + corePulse * 0.5})`);
+            grd.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, center - 20, width, 40);
+
+            // 通常モードに戻す
+            ctx.globalCompositeOperation = 'source-over';
+
+            monochromeTexture.needsUpdate = true;
+        }
+
+        const photoGeo = new THREE.PlaneGeometry(6, 6);
+        const photoMat = new THREE.MeshStandardMaterial({ 
+            map: createMachoPhotoTexture(),
+            roughness: 0.4
+        });
+        const photo = new THREE.Mesh(photoGeo, photoMat);
+        photo.position.set(0, 5, -7.8);
+        roomGroup.add(photo);
+
+        // Frame for Photo
+        const pFrameGeo = new THREE.BoxGeometry(6.2, 6.2, 0.1);
+        const pFrameMat = new THREE.MeshStandardMaterial({ color: 0xccaa00, metalness: 0.8, roughness: 0.2 });
+        const pFrame = new THREE.Mesh(pFrameGeo, pFrameMat);
+        pFrame.position.set(0, 5, -7.9);
+        roomGroup.add(pFrame);
+
+        // Side Walls
+        const sideWallGeo = new THREE.PlaneGeometry(30, 15);
+        const leftWall = new THREE.Mesh(sideWallGeo, wallMat);
+        leftWall.rotation.y = Math.PI / 2;
+        leftWall.position.set(-15, 7.5, 0);
+        leftWall.receiveShadow = true;
+        roomGroup.add(leftWall);
+
+        const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
+        rightWall.rotation.y = -Math.PI / 2;
+        rightWall.position.set(15, 7.5, 0);
+        rightWall.receiveShadow = true;
+        roomGroup.add(rightWall);
+
+        // Ceiling Lights
+        const lightGeo = new THREE.BoxGeometry(3, 0.2, 0.5);
+        const lightMat = new THREE.MeshBasicMaterial({ color: 0xffffee });
+        const ceilingPos = [
+            {x: -6, z: -2}, {x: 0, z: -2}, {x: 6, z: -2},
+            {x: -6, z: 2}, {x: 0, z: 2}, {x: 6, z: 2},
+            {x: -6, z: 6}, {x: 0, z: 6}, {x: 6, z: 6}
+        ];
+        ceilingPos.forEach(p => {
+            const l = new THREE.Mesh(lightGeo, lightMat);
+            l.position.set(p.x, 9, p.z);
+            roomGroup.add(l);
+            const pl = new THREE.PointLight(0xffffee, 0.2, 12);
+            pl.position.set(p.x, 8.5, p.z);
+            roomGroup.add(pl);
+        });
+
+        // Decor: Dumbbell Rack
+        const rackGroup = new THREE.Group();
+        rackGroup.position.set(-5, 0, -5);
+        rackGroup.rotation.y = Math.PI / 6;
+        roomGroup.add(rackGroup);
+
+        const rackMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const rackBase = new THREE.Mesh(new THREE.BoxGeometry(4, 0.1, 1), rackMat);
+        rackBase.position.y = 0.05;
+        rackGroup.add(rackBase);
+        
+        const rackUpright = new THREE.BoxGeometry(0.1, 1.5, 0.8);
+        const lUp = new THREE.Mesh(rackUpright, rackMat);
+        lUp.position.set(-1.8, 0.75, 0);
+        rackGroup.add(lUp);
+        const rUp = new THREE.Mesh(rackUpright, rackMat);
+        rUp.position.set(1.8, 0.75, 0);
+        rackGroup.add(rUp);
+
+        const shelfGeo = new THREE.BoxGeometry(3.8, 0.1, 0.6);
+        const shelf1 = new THREE.Mesh(shelfGeo, rackMat);
+        shelf1.position.y = 0.6;
+        rackGroup.add(shelf1);
+        const shelf2 = new THREE.Mesh(shelfGeo, rackMat);
+        shelf2.position.y = 1.3;
+        rackGroup.add(shelf2);
+
+        // Dumbbells on rack
+        const dbHandleMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+        const dbPlateMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+        
+        for(let r=0; r<2; r++) {
+            const y = r===0 ? 0.75 : 1.45;
+            for(let i=0; i<3; i++) {
+                const x = (i-1) * 1.0;
+                const db = new THREE.Group();
+                db.position.set(x, y, 0);
+                
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4), dbHandleMat);
+                handle.rotation.z = Math.PI/2;
+                db.add(handle);
+                
+                const pSize = 0.1 + (r*0.05) + (i*0.02);
+                const plate = new THREE.Mesh(new THREE.CylinderGeometry(pSize, pSize, 0.08), dbPlateMat);
+                plate.rotation.z = Math.PI/2;
+                plate.position.x = -0.15;
+                db.add(plate);
+                
+                const plate2 = plate.clone();
+                plate2.position.x = 0.15;
+                db.add(plate2);
+                
+                rackGroup.add(db);
+            }
+        }
+
+        // Decor: Bench
+        const benchGroup = new THREE.Group();
+        benchGroup.position.set(5, 0, -4);
+        benchGroup.rotation.y = -Math.PI / 8;
+        roomGroup.add(benchGroup);
+
+        const benchLegGeo = new THREE.BoxGeometry(0.2, 0.5, 0.5);
+        const leg1 = new THREE.Mesh(benchLegGeo, rackMat);
+        leg1.position.set(-1, 0.25, 0);
+        benchGroup.add(leg1);
+        const leg2 = new THREE.Mesh(benchLegGeo, rackMat);
+        leg2.position.set(1, 0.25, 0);
+        benchGroup.add(leg2);
+
+        const seatGeo = new RoundedBoxGeometry(2.5, 0.15, 0.8, 4, 0.05);
+        const seatMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+        const seat = new THREE.Mesh(seatGeo, seatMat);
+        seat.position.y = 0.55;
+        benchGroup.add(seat);
+
+
+        // --- Character Generation (Humanoid) ---
+        
+        // Materials
+        const skinMat = new THREE.MeshStandardMaterial({ 
+            color: skins[0].skinColor,
+            roughness: 0.4, 
+            metalness: 0.1,
+        });
+        const shortsMat = new THREE.MeshStandardMaterial({ color: 0x2255ee, roughness: 0.6 });
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.2, metalness: 0.8 });
+        const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 });
+
+        // Barbell Materials
+        const neonBarMat = new THREE.MeshStandardMaterial({ 
+            color: 0x00ffcc, emissive: 0x00ffcc, emissiveIntensity: 1.5, metalness: 0.5, roughness: 0.2
+        });
+        const neonPlateMat = new THREE.MeshStandardMaterial({ 
+            color: 0xff00ff, emissive: 0xff00ff, emissiveIntensity: 1.5, metalness: 0.5, roughness: 0.2
+        });
+        const goldMat = new THREE.MeshStandardMaterial({ 
+            color: 0xffcc00, metalness: 1.0, roughness: 0.1, emissive: 0x664400 
+        });
+        // Rainbow Material
+        const rainbowMat = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff, metalness: 0.8, roughness: 0.1, emissiveIntensity: 0.8
+        });
+        // Log/Wood Material
+        const logBarMat = new THREE.MeshStandardMaterial({ 
+            color: 0x8d6e63, metalness: 0.0, roughness: 1.0 
+        });
+        const logPlateMat = new THREE.MeshStandardMaterial({ 
+            color: 0x5d4037, metalness: 0.0, roughness: 1.0 
+        });
+        
+        // Monochrome Flame Material
+        const monochromeMat = new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            emissive: 0xffffff,
+            emissiveMap: monochromeTexture,
+            emissiveIntensity: 1.2,
+            map: monochromeTexture,
+            roughness: 0.5,
+            metalness: 0.1
+        });
+
+        // Body Parts Store
+        const muscles = {
+            chest: null, abs: null, upperArmL: null, upperArmR: null,
+            forearmL: null, forearmR: null, thighL: null, thighR: null,
+            calfL: null, calfR: null, neck: null, traps: null
+        };
+
+        const rig = {
+            root: new THREE.Group(), spine: new THREE.Group(),
+            shoulderL: new THREE.Group(), shoulderR: new THREE.Group(),
+            elbowL: new THREE.Group(), elbowR: new THREE.Group(),
+            handL: new THREE.Group(), handR: new THREE.Group(),
+            kneeL: new THREE.Group(), kneeR: new THREE.Group(),
+            hair: null // ★追加: 髪の毛用
+        };
+
+        scene.add(rig.root);
+
+        function createBody() {
+            const seg = 16; 
+            // -- Lower Body --
+            const pelvisWidth = 0.36;
+            const hipsGeo = new RoundedBoxGeometry(pelvisWidth, 0.22, 0.24, 4, 0.08);
+            const hips = new THREE.Mesh(hipsGeo, shortsMat);
+            hips.position.y = 0.95;
+            hips.castShadow = true;
+            rig.root.add(hips);
+
+            function createLeg(side, kneeGroup) { 
+                const xOffset = 0.13 * side;
+                const legYStart = 0.9;
+                const thighLen = 0.42;
+                const thighRadius = 0.085;
+                const thighGeo = new THREE.CapsuleGeometry(thighRadius, thighLen, 4, 12);
+                const thigh = new THREE.Mesh(thighGeo, skinMat);
+                thigh.position.set(xOffset, legYStart - (thighLen/2), 0);
+                thigh.castShadow = true;
+                rig.root.add(thigh);
+                muscles[side === 1 ? 'thighL' : 'thighR'] = thigh;
+
+                kneeGroup.position.set(xOffset, legYStart - thighLen + 0.02, 0); 
+                rig.root.add(kneeGroup);
+                const kneeGeo = new THREE.SphereGeometry(0.075, 12, 12);
+                const knee = new THREE.Mesh(kneeGeo, skinMat);
+                kneeGroup.add(knee);
+
+                const calfLen = 0.38;
+                const calfRadius = 0.07;
+                const calfGeo = new THREE.CapsuleGeometry(calfRadius, calfLen, 4, 12);
+                const calf = new THREE.Mesh(calfGeo, skinMat);
+                calf.position.set(0, -(calfLen/2) - 0.02, 0);
+                calf.castShadow = true;
+                kneeGroup.add(calf);
+                muscles[side === 1 ? 'calfL' : 'calfR'] = calf;
+
+                const footGeo = new RoundedBoxGeometry(0.12, 0.08, 0.28, 4, 0.02);
+                footGeo.translate(0, -0.04, 0.06); 
+                const foot = new THREE.Mesh(footGeo, blackMat);
+                foot.position.set(0, -calfLen - 0.05, 0);
+                foot.castShadow = true;
+                kneeGroup.add(foot);
+            }
+            createLeg(1, rig.kneeL);
+            createLeg(-1, rig.kneeR);
+
+            // -- Upper Body --
+            rig.spine.position.y = 1.05;
+            rig.root.add(rig.spine);
+
+            const absLen = 0.35;
+            const absRadius = 0.15;
+            const absGeo = new THREE.CapsuleGeometry(absRadius, absLen, 4, 12);
+            absGeo.scale(1.0, 1, 0.8);
+            const abs = new THREE.Mesh(absGeo, skinMat);
+            abs.position.y = 0.15;
+            abs.castShadow = true;
+            rig.spine.add(abs);
+            muscles.abs = abs;
+
+            const chestGeo = new RoundedBoxGeometry(0.38, 0.22, 0.15, 1, 0.38);
+            const chest = new THREE.Mesh(chestGeo, skinMat);
+            chest.position.y = 0.48;
+            chest.position.z = 0.030;
+            chest.castShadow = true;
+            rig.spine.add(chest);
+            muscles.chest = chest;
+
+            const neckLen = 0.5;
+            const neckGeo = new THREE.CapsuleGeometry(0.08, neckLen, 5, 5);
+            const neck = new THREE.Mesh(neckGeo, skinMat);
+            neck.position.y = 0.33;
+            rig.spine.add(neck);
+            muscles.neck = neck;
+
+            const headGroup = new THREE.Group();
+            headGroup.position.y = 0.76;
+            rig.spine.add(headGroup);
+            const headGeo = new THREE.SphereGeometry(0.13, 16, 16);
+            headGeo.scale(0.9, 1.15, 1.0);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.castShadow = true;
+            headGroup.add(head);
+
+            // ★追加: 髪の毛 (saoriスキン用)
+            const hairGroup = new THREE.Group();
+            headGroup.add(hairGroup);
+            rig.hair = hairGroup;
+            rig.hair.visible = false; // デフォルトでは非表示
+
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+
+            // お団子部分 (後ろ髪)
+            const bunGeo = new THREE.SphereGeometry(0.06, 12, 12);
+            const bun = new THREE.Mesh(bunGeo, hairMat);
+            bun.position.set(0, 0.08, -0.11); 
+            hairGroup.add(bun);
+
+            // 束ねた髪の先
+            const ponyGeo = new THREE.ConeGeometry(0.04, 0.15, 8);
+            const pony = new THREE.Mesh(ponyGeo, hairMat);
+            pony.rotation.x = -Math.PI / 1.5;
+            pony.position.set(0, 0.02, -0.16);
+            hairGroup.add(pony);
+
+            // ★追加: 頭頂部の髪 (平らに頭を覆う)
+            const topHairGeo = new THREE.SphereGeometry(0.135, 16, 16);
+            const topHair = new THREE.Mesh(topHairGeo, hairMat);
+            // 頭のスケール(0.9, 1.15, 1.0)に合わせて少し大きく、平たくする
+            topHair.scale.set(0.92, 0.35, 1.02); 
+            topHair.position.set(0, 0.11, -0.02);
+            hairGroup.add(topHair);
+
+            // ★追加: 前髪 (おでこを隠す)
+            const frontHairGeo = new THREE.SphereGeometry(0.13, 16, 16);
+            const frontHair = new THREE.Mesh(frontHairGeo, hairMat);
+            frontHair.scale.set(0.88, 0.25, 0.4); 
+            frontHair.position.set(0, 0.09, 0.08); // 前の方へ
+            frontHair.rotation.x = 0.2;
+            hairGroup.add(frontHair);
+
+            const noseGeo = new THREE.ConeGeometry(0.015, 0.06, 4);
+            const nose = new THREE.Mesh(noseGeo, skinMat);
+            nose.rotation.x = -Math.PI / 2;
+            nose.position.set(0, 0, 0.13);
+            headGroup.add(nose);
+
+            const earGeo = new THREE.SphereGeometry(0.03, 8, 8);
+            earGeo.scale(1, 1.5, 0.5);
+            const earL = new THREE.Mesh(earGeo, skinMat);
+            earL.position.set(0.12, 0, 0);
+            headGroup.add(earL);
+            const earR = new THREE.Mesh(earGeo, skinMat);
+            earR.position.set(-0.12, 0, 0);
+            headGroup.add(earR);
+
+            const eyeGeo = new THREE.SphereGeometry(0.015, 8, 8);
+            const eyeL = new THREE.Mesh(eyeGeo, blackMat);
+            eyeL.position.set(0.045, 0.02, 0.115);
+            headGroup.add(eyeL);
+            const eyeR = new THREE.Mesh(eyeGeo, blackMat);
+            eyeR.position.set(-0.045, 0.02, 0.115);
+            headGroup.add(eyeR);
+
+            // -- Arms --
+            rig.shoulderL.position.set(0.28, 0.45, 0);
+            rig.shoulderR.position.set(-0.28, 0.45, 0);
+            rig.spine.add(rig.shoulderL);
+            rig.spine.add(rig.shoulderR);
+
+            function createArm(group, elbowGroup, handGroup, sideName) {
+                const deltsGeo = new THREE.SphereGeometry(0.11, 16, 16);
+                const delts = new THREE.Mesh(deltsGeo, skinMat);
+                group.add(delts);
+
+                const upperLen = 0.32;
+                const upperRadius = 0.075;
+                const upperGeo = new THREE.CapsuleGeometry(upperRadius, upperLen, 4, 12);
+                const upper = new THREE.Mesh(upperGeo, skinMat);
+                upper.position.y = -(upperLen/2);
+                upper.castShadow = true;
+                group.add(upper);
+                muscles['upperArm' + sideName] = upper;
+
+                elbowGroup.position.y = -upperLen;
+                group.add(elbowGroup);
+                const elbowGeo = new THREE.SphereGeometry(0.07, 12, 12);
+                const elbow = new THREE.Mesh(elbowGeo, skinMat);
+                elbowGroup.add(elbow);
+
+                const foreLen = 0.28;
+                const foreRadius = 0.065;
+                const foreGeo = new THREE.CapsuleGeometry(foreRadius, foreLen, 4, 12);
+                const forearm = new THREE.Mesh(foreGeo, skinMat);
+                forearm.position.y = -(foreLen/2);
+                forearm.castShadow = true;
+                elbowGroup.add(forearm);
+                muscles['forearm' + sideName] = forearm;
+
+                handGroup.position.y = -foreLen;
+                elbowGroup.add(handGroup);
+                
+                const palmGeo = new RoundedBoxGeometry(0.085, 0.09, 0.045, 4, 0.01);
+                const palm = new THREE.Mesh(palmGeo, skinMat);
+                palm.position.y = -0.05;
+                handGroup.add(palm);
+
+                for(let i=0; i<4; i++) {
+                    const fingerGeo = new THREE.CapsuleGeometry(0.016, 0.05, 4, 8);
+                    const finger = new THREE.Mesh(fingerGeo, skinMat);
+                    const fx = (i - 1.5) * 0.021; 
+                    finger.position.set(fx, -0.06, 0.035);
+                    finger.rotation.x = -0.2;
+                    handGroup.add(finger);
+                    const knuckleGeo = new THREE.SphereGeometry(0.017, 8, 8);
+                    const knuckle = new THREE.Mesh(knuckleGeo, skinMat);
+                    knuckle.position.set(fx, -0.025, 0.025);
+                    handGroup.add(knuckle);
+                }
+
+                const thumbGeo = new THREE.CapsuleGeometry(0.018, 0.055, 4, 8);
+                const thumb = new THREE.Mesh(thumbGeo, skinMat);
+                const innerDir = sideName === 'L' ? -1 : 1;
+                thumb.position.set(0.04 * innerDir, -0.04, 0.04);
+                thumb.rotation.z = 0.8 * innerDir; 
+                thumb.rotation.x = -0.6;
+                handGroup.add(thumb);
+            }
+            createArm(rig.shoulderL, rig.elbowL, rig.handL, 'L');
+            createArm(rig.shoulderR, rig.elbowR, rig.handR, 'R');
+        }
+
+        // --- Equipment ---
+        let barbell;
+        let barbellAura; // 全体オーラ用（ネオン・ゴールド・丸太）
+        let plateAuraL, plateAuraR; // プレートオーラ用（ゲーミング）
+
+        function updateBarbellSkin() {
+            if (!barbell) return;
+            
+            // 全オーラを一旦非表示
+            if (barbellAura) barbellAura.visible = false;
+            if (plateAuraL) plateAuraL.visible = false;
+            if (plateAuraR) plateAuraR.visible = false;
+
+            if (state.currentBarbellSkin !== 'default') {
+                // スキンごとのオーラ設定
+                switch(state.currentBarbellSkin) {
+                    case 'neon':
+                        // オーラ削除
+                        break;
+                    case 'gold':
+                        // オーラ削除
+                        break;
+                    case 'log':
+                        // オーラ削除
+                        break;
+                    case 'rainbow':
+                        // ゲーミングはプレートのみオーラ表示
+                        if(plateAuraL && plateAuraR) {
+                            plateAuraL.visible = true;
+                            plateAuraR.visible = true;
+                            // 色はanimateループで更新
+                        }
+                        break;
+                    case 'monochrome':
+                        // カオスは独自のパーティクルとテクスチャアニメーションを使用（オーラメッシュは不要）
+                        break;
+                }
+            }
+
+            barbell.traverse((child) => {
+                // オーラ用メッシュはマテリアル変更の対象外にする
+                if (child === barbellAura || child === plateAuraL || child === plateAuraR) return;
+
+                if (child.isMesh) {
+                    const radius = child.geometry.parameters.radiusTop;
+                    const isBar = radius < 0.05;
+                    
+                    if (state.currentBarbellSkin === 'neon') {
+                        child.material = isBar ? neonBarMat : neonPlateMat;
+                    } else if (state.currentBarbellSkin === 'gold') {
+                        child.material = goldMat;
+                    } else if (state.currentBarbellSkin === 'rainbow') {
+                        child.material = rainbowMat;
+                    } else if (state.currentBarbellSkin === 'log') {
+                        child.material = isBar ? logBarMat : logPlateMat;
+                    } else if (state.currentBarbellSkin === 'monochrome') { 
+                        child.material = monochromeMat;
+                    } else {
+                        // Default
+                        child.material = isBar ? metalMat : blackMat;
+                    }
+                }
+            });
+        }
+
+        function createEquipment() {
+            const barGroup = new THREE.Group();
+            
+            const barGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.8, 8);
+            barGeo.rotateZ(Math.PI / 2);
+            const bar = new THREE.Mesh(barGeo, metalMat);
+            bar.castShadow = true;
+            barGroup.add(bar);
+
+            function addPlate(x, scale) {
+                const plateGeo = new THREE.CylinderGeometry(0.22 * scale, 0.22 * scale, 0.04, 24);
+                plateGeo.rotateZ(Math.PI / 2);
+                const plate = new THREE.Mesh(plateGeo, blackMat);
+                plate.position.x = x;
+                plate.castShadow = true;
+                barGroup.add(plate);
+                const rimGeo = new THREE.CylinderGeometry(0.23 * scale, 0.23 * scale, 0.015, 24);
+                rimGeo.rotateZ(Math.PI / 2);
+                const rim = new THREE.Mesh(rimGeo, blackMat);
+                rim.position.x = x > 0 ? x + 0.02 : x - 0.02;
+                barGroup.add(rim);
+            }
+
+            addPlate(0.55, 1);
+            addPlate(-0.55, 1);
+            addPlate(0.65, 0.85);
+            addPlate(-0.65, 0.85);
+
+            // 全体オーラメッシュ (円柱)
+            const auraGeo = new THREE.CylinderGeometry(0.35, 0.35, 2.2, 32, 1, true);
+            const auraMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.0,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            barbellAura = new THREE.Mesh(auraGeo, auraMat);
+            barbellAura.rotation.z = Math.PI / 2;
+            barbellAura.visible = false;
+            barGroup.add(barbellAura);
+
+            // プレート限定オーラメッシュ (左右の円柱)
+            const pAuraGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.4, 32, 1, true);
+            const pAuraMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.0,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            
+            plateAuraL = new THREE.Mesh(pAuraGeo, pAuraMat);
+            plateAuraL.rotation.z = Math.PI / 2;
+            plateAuraL.position.x = 0.6; // 左プレート位置
+            barGroup.add(plateAuraL);
+
+            plateAuraR = new THREE.Mesh(pAuraGeo, pAuraMat.clone()); // マテリアル複製して個別に制御可能に
+            plateAuraR.rotation.z = Math.PI / 2;
+            plateAuraR.position.x = -0.6; // 右プレート位置
+            barGroup.add(plateAuraR);
+
+            scene.add(barGroup);
+            barbell = barGroup;
+            updateBarbellSkin();
+        }
+
+        createBody();
+        createEquipment();
+
+        rig.shoulderL.rotation.z = -0.1;
+        rig.shoulderR.rotation.z = 0.1;
+        rig.elbowL.rotation.x = -0.6;
+        rig.elbowR.rotation.x = -0.6;
+
+        function updateUI() {
+            document.getElementById('level-text').innerText = state.level;
+            document.getElementById('exp-text').innerText = `${state.exp} / ${state.expToNext}`;
+            const pct = (state.exp / state.expToNext) * 100;
+            document.getElementById('exp-bar').style.width = `${pct}%`;
+            document.getElementById('money-text').innerText = `${state.money.toLocaleString()} 円`;
+            const weight = 40 + (state.level - 1) * 3;
+            document.getElementById('weight-text').innerText = `${weight} kg`;
+            const rankIndex = Math.min(Math.floor((state.level - 1) / 5), titles.length - 1);
+            document.getElementById('rank-text').innerText = titles[rankIndex];
+            checkShopButtons();
+        }
+
+        function spawnFloatingText(text, x, y) {
+            const el = document.createElement('div');
+            el.className = 'floating-text';
+            el.innerHTML = text;
+            const randomX = (Math.random() - 0.5) * 50;
+            el.style.left = `50%`;
+            el.style.marginLeft = `${x + randomX - 100}px`; 
+            el.style.top = `calc(40% + ${y}px)`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        function levelUp() {
+            state.exp -= state.expToNext;
+            state.level++;
+            state.expToNext = Math.floor(state.expToNext * 1.2);
+            
+            const rankIndex = Math.min(Math.floor((state.level - 1) / 5), titles.length - 1);
+            const moneyBonus = 100 + (rankIndex * 500);
+            
+            state.money += moneyBonus;
+            spawnFloatingText(`+${moneyBonus}円`, 0, 40);
+
+            if (state.level % 5 === 0) {
+                state.muscleScale += 0.1; 
+                spawnFloatingText("MUSCLE EVOLUTION!!", 0, -40);
+            }
+            
+            spawnFloatingText("LEVEL UP!!", 0, 0);
+            saveGame();
+            updateBodyShape();
+            updateUI();
+        }
+
+        function updateBodyShape() {
+            const s = state.muscleScale;
+            muscles.chest.scale.set(s * 0.9, s * 0.9, s * 0.9);
+            const armThickness = s * 1.15;
+            muscles.upperArmL.scale.set(armThickness, 1, armThickness);
+            muscles.upperArmR.scale.set(armThickness, 1, armThickness);
+            const foreThickness = s * 1.1;
+            muscles.forearmL.scale.set(foreThickness, 1, foreThickness);
+            muscles.forearmR.scale.set(foreThickness, 1, foreThickness);
+            const thighThickness = s * 1.15;
+            muscles.thighL.scale.set(thighThickness, 1, thighThickness);
+            muscles.thighR.scale.set(thighThickness, 1, thighThickness);
+            const calfThickness = s * 1.08;
+            muscles.calfL.scale.set(calfThickness, 1, calfThickness);
+            muscles.calfR.scale.set(calfThickness, 1, calfThickness);
+            muscles.neck.scale.set(1 + (s-1)*0.7, 1, 1 + (s-1)*0.7);
+            muscles.abs.scale.set(1.0 + (s-1)*0.5, 1, 0.8 + (s-1)*0.4);
+            if(barbell) {
+                barbell.children.forEach((child, idx) => {
+                    if (idx > 0) { 
+                        const plateScale = 1 + (state.level * 0.05);
+                        child.scale.set(1, plateScale, plateScale);
+                    }
+                });
+            }
+        }
+
+        function updateCharacterSkin() {
+            const currentSkinData = skins.find(s => s.id === state.currentSkin) || skins[0];
+            skinMat.color.setHex(currentSkinData.skinColor);
+            
+            if (currentSkinData.emissive !== undefined) {
+                skinMat.emissive.setHex(currentSkinData.emissive);
+            } else {
+                skinMat.emissive.setHex(0x000000);
+            }
+
+            skinMat.metalness = currentSkinData.metalness;
+            skinMat.roughness = currentSkinData.roughness;
+            skinMat.needsUpdate = true;
+            shortsMat.color.setHex(currentSkinData.shortsColor);
+            shortsMat.needsUpdate = true;
+
+            // ★追加: 霊長類最強スキンの時だけ髪を表示
+            if (rig.hair) {
+                rig.hair.visible = (state.currentSkin === 'saori');
+            }
+        }
+
+        // --- UI Logic ---
+        const shopBtn = document.getElementById('shop-btn');
+        const shopModal = document.getElementById('shop-modal');
+        const closeShop = document.getElementById('close-shop');
+        const shopItemsContainer = document.getElementById('shop-items');
+        const bonusContainer = document.getElementById('bonus-container');
+
+        const skinBtn = document.getElementById('skin-btn');
+        const skinModal = document.getElementById('skin-modal');
+        const closeSkin = document.getElementById('close-skin');
+        const skinItemsContainer = document.getElementById('skin-items');
+
+        shopBtn.addEventListener('click', () => {
+            shopModal.style.display = 'block';
+            skinModal.style.display = 'none';
+            renderBonuses();
+            checkShopButtons();
+        });
+        closeShop.addEventListener('click', () => { shopModal.style.display = 'none'; });
+
+        skinBtn.addEventListener('click', () => {
+            skinModal.style.display = 'block';
+            shopModal.style.display = 'none';
+            switchSkinTab('body'); // Default tab
+        });
+        closeSkin.addEventListener('click', () => { skinModal.style.display = 'none'; });
+
+        // Skin Tabs
+        window.switchSkinTab = function(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            if (tabName === 'body') {
+                renderBodySkins();
+            } else {
+                renderBarbellSkins();
+            }
+        }
+
+        function renderBodySkins() {
+            skinItemsContainer.innerHTML = '';
+            skins.forEach(skin => {
+                const isUnlocked = state.level >= skin.level;
+                const isSelected = state.currentSkin === skin.id;
+                
+                const el = document.createElement('div');
+                el.className = 'skin-item';
+                
+                let btnText = "選択";
+                if (isSelected) btnText = "選択中";
+                else if (!isUnlocked) btnText = `Lv.${skin.level}で解放`;
+
+                const btnClass = isSelected ? 'select-btn active' : 'select-btn';
+                const disabled = !isUnlocked || isSelected;
+
+                el.innerHTML = `
+                    <div>
+                        <div class="font-bold text-purple-200">${skin.name}</div>
+                        <div class="text-xs text-gray-400">Lv.${skin.level}</div>
+                    </div>
+                    <button class="${btnClass}" onclick="selectBodySkin('${skin.id}')" ${disabled ? 'disabled' : ''}>
+                        ${btnText}
+                    </button>
+                `;
+                skinItemsContainer.appendChild(el);
+            });
+        }
+
+        function renderBarbellSkins() {
+            skinItemsContainer.innerHTML = '';
+            barbellSkins.forEach(skin => {
+                // Check unlock conditions
+                let isUnlocked = false;
+                if (skin.id === 'default') isUnlocked = true;
+                else if (skin.level && state.level >= skin.level) isUnlocked = true;
+                else if (state.unlockedBarbellSkins.includes(skin.id)) isUnlocked = true;
+
+                const isSelected = state.currentBarbellSkin === skin.id;
+                
+                const el = document.createElement('div');
+                el.className = 'skin-item';
+                
+                let btnText = "選択";
+                let btnClass = "select-btn";
+                let action = `selectBarbellSkin('${skin.id}')`;
+                let noteText = "";
+                let isDisabled = false;
+
+                if (isSelected) {
+                    btnText = "選択中";
+                    btnClass += " active";
+                    isDisabled = true;
+                } else if (!isUnlocked) {
+                    if (skin.level) {
+                        noteText = `Lv.${skin.level}で解放`;
+                        btnText = "未解放";
+                        isDisabled = true;
+                    } else if (skin.price) {
+                        // Purchase logic
+                        btnText = `${skin.price.toLocaleString()}円`;
+                        btnClass = "buy-btn"; 
+                        action = `buyBarbellSkin('${skin.id}')`;
+                        if (state.money < skin.price) isDisabled = true;
+                    }
+                }
+
+                el.innerHTML = `
+                    <div>
+                        <div class="font-bold text-yellow-200">${skin.name}</div>
+                        <div class="text-xs text-gray-400">${noteText}</div>
+                    </div>
+                    <button class="${btnClass}" onclick="${action}" ${isDisabled ? 'disabled' : ''}>
+                        ${btnText}
+                    </button>
+                `;
+                skinItemsContainer.appendChild(el);
+            });
+        }
+
+        window.selectBodySkin = function(id) {
+            const skin = skins.find(s => s.id === id);
+            if (skin && state.level >= skin.level) {
+                state.currentSkin = id;
+                updateCharacterSkin();
+                spawnFloatingText("スキン変更！", 0, -50);
+                saveGame();
+                renderBodySkins();
+            }
+        };
+
+        window.selectBarbellSkin = function(id) {
+            if (state.unlockedBarbellSkins.includes(id) || id === 'default' || (barbellSkins.find(s=>s.id===id).level && state.level >= barbellSkins.find(s=>s.id===id).level)) {
+                state.currentBarbellSkin = id;
+                updateBarbellSkin();
+                spawnFloatingText("バーベル変更！", 0, -50);
+                saveGame();
+                renderBarbellSkins();
+            }
+        };
+
+        window.buyBarbellSkin = function(id) {
+            const skin = barbellSkins.find(s => s.id === id);
+            if (skin && state.money >= skin.price) {
+                state.money -= skin.price;
+                if (!state.unlockedBarbellSkins.includes(id)) {
+                    state.unlockedBarbellSkins.push(id);
+                }
+                state.currentBarbellSkin = id;
+                updateBarbellSkin();
+                spawnFloatingText("購入＆装備！", 0, -50);
+                saveGame();
+                updateUI();
+                renderBarbellSkins();
+            }
+        };
+
+        // Bonuses
+        function renderBonuses() {
+            bonusContainer.innerHTML = '';
+            // Daily
+            const today = new Date().toISOString().slice(0, 10);
+            const canDaily = state.lastDaily !== today;
+            const dailyBtn = document.createElement('button');
+            dailyBtn.className = 'bonus-btn';
+            dailyBtn.disabled = !canDaily;
+            dailyBtn.innerHTML = `<span>📅 デイリー</span><span class="amt">1000円</span><span style="font-size:10px">${canDaily ? '受取可' : '受取済'}</span>`;
+            dailyBtn.onclick = () => {
+                state.money += 1000; state.lastDaily = today;
+                spawnFloatingText("+1000円", 0, 50); saveGame(); updateUI(); renderBonuses();
+            };
+            bonusContainer.appendChild(dailyBtn);
+            // Lv10
+            const canLv10 = state.level >= 10 && !state.receivedLv10Bonus;
+            const lv10Btn = document.createElement('button');
+            lv10Btn.className = 'bonus-btn';
+            lv10Btn.disabled = !canLv10;
+            let lv10Text = canLv10 ? '受取可' : (state.receivedLv10Bonus ? '受取済' : 'Lv10で解放');
+            lv10Btn.innerHTML = `<span>🏆 Lv10達成</span><span class="amt">1000円</span><span style="font-size:10px">${lv10Text}</span>`;
+            lv10Btn.onclick = () => {
+                state.money += 1000; state.receivedLv10Bonus = true;
+                spawnFloatingText("+1000円", 0, 50); saveGame(); updateUI(); renderBonuses();
+            };
+            bonusContainer.appendChild(lv10Btn);
+            // Time
+            const now = Date.now();
+            const cooldown = 30 * 60 * 1000;
+            const diff = now - (state.lastTimeBonus || 0);
+            const canTimeBonus = diff >= cooldown;
+            const timeBtn = document.createElement('button');
+            timeBtn.className = 'bonus-btn';
+            timeBtn.disabled = !canTimeBonus;
+            let subText = "今すぐ受取";
+            if (!canTimeBonus) {
+                const remainingMin = Math.ceil((cooldown - diff) / 60000);
+                subText = `あと${remainingMin}分`;
+            }
+            timeBtn.innerHTML = `<span>⏱ 30分ボーナス</span><span class="amt">500円</span><span style="font-size:10px">${subText}</span>`;
+            timeBtn.onclick = () => {
+                state.money += 500; state.lastTimeBonus = Date.now();
+                spawnFloatingText("+500円", 0, 50); saveGame(); updateUI(); renderBonuses();
+            };
+            bonusContainer.appendChild(timeBtn);
+        }
+
+        // Shop Render
+        function initShop() {
+            shopItemsContainer.innerHTML = '';
+            shopItems.forEach(item => {
+                let isSoldOut = false;
+                if (item.id === 'protein' && state.hasProtein) isSoldOut = true;
+                
+                const el = document.createElement('div');
+                el.className = 'shop-item';
+                const buttonText = isSoldOut ? '売切' : `${item.price.toLocaleString()}円`;
+                
+                el.innerHTML = `
+                    <div>
+                        <div class="font-bold text-yellow-200">${item.name}</div>
+                        <div class="text-xs text-gray-400">${item.desc}</div>
+                    </div>
+                    <button class="buy-btn" id="btn-${item.id}" onclick="buyItem('${item.id}')" ${isSoldOut ? 'disabled' : ''}>
+                        ${buttonText}
+                    </button>
+                `;
+                shopItemsContainer.appendChild(el);
+            });
+            checkShopButtons();
+        }
+
+        window.buyItem = function(id) {
+            const item = shopItems.find(i => i.id === id);
+            if (id === 'protein' && state.hasProtein) return;
+
+            if(state.money >= item.price) {
+                state.money -= item.price;
+                if (id === 'protein') {
+                    state.xpPerRep = Math.ceil(state.xpPerRep * 1.1);
+                    state.hasProtein = true;
+                } else {
+                    state.xpPerRep += item.xpBonus;
+                    item.price = Math.floor(item.price * 1.5);
+                }
+                spawnFloatingText("BOUGHT!", 0, -50);
+                saveGame();
+                updateUI();
+                initShop(); 
+            }
+        };
+
+        function checkShopButtons() {
+            if(shopModal.style.display === 'none') return;
+            shopItems.forEach(item => {
+                const btn = document.getElementById(`btn-${item.id}`);
+                if(btn) {
+                    let isSoldOut = false;
+                    if (item.id === 'protein' && state.hasProtein) isSoldOut = true;
+                    if (isSoldOut) btn.disabled = true;
+                    else btn.disabled = state.money < item.price;
+                }
+            });
+        }
+        
+        initShop();
+
+        // ★追加: カオスバーベル用の常時発生パーティクル
+        const chaosParticles = [];
+        const chaosParticleGeo = new THREE.DodecahedronGeometry(0.03, 0); // 少し小さめ
+
+        function spawnChaosParticles() {
+            if (!barbell) return;
+            // 毎フレーム少しずつ出す
+            const count = 2; 
+            for(let i=0; i<count; i++) {
+                // 白と黒の粒子をランダムに
+                const isWhite = Math.random() > 0.5;
+                const color = isWhite ? 0xffffff : 0x000000;
+                
+                const mat = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const mesh = new THREE.Mesh(chaosParticleGeo, mat);
+                
+                // バーベルの全体から湧き出るように配置
+                // X軸方向（横幅）に広げる
+                const width = 1.8; 
+                const xOffset = (Math.random() - 0.5) * width;
+                const yOffset = (Math.random() - 0.5) * 0.15;
+                const zOffset = (Math.random() - 0.5) * 0.15;
+
+                // バーベルの現在位置を基準にする
+                mesh.position.copy(barbell.position);
+                mesh.position.x += xOffset;
+                mesh.position.y += yOffset;
+                mesh.position.z += zOffset;
+
+                // ゆらゆらと上に昇る動き
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1, // 横揺れ
+                    (Math.random() * 0.3) + 0.1, // ゆっくり上昇
+                    (Math.random() - 0.5) * 0.1  // 奥手前揺れ
+                );
+
+                scene.add(mesh);
+                // life: 1.0秒で消える
+                chaosParticles.push({ mesh, velocity, life: 1.0, maxLife: 1.0 });
+            }
+        }
+
+        function updateParticles(delta) {
+            // ★追加: カオスパーティクルの更新
+            for (let i = chaosParticles.length - 1; i >= 0; i--) {
+                const p = chaosParticles[i];
+                p.life -= delta;
+
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    p.mesh.material.dispose();
+                    chaosParticles.splice(i, 1);
+                } else {
+                    p.mesh.position.addScaledVector(p.velocity, delta);
+                    // ふわふわした動き
+                    p.velocity.x += (Math.random() - 0.5) * delta * 0.5;
+                    p.velocity.z += (Math.random() - 0.5) * delta * 0.5;
+                    
+                    p.mesh.rotation.x += delta;
+                    p.mesh.rotation.y += delta;
+                    
+                    // フェードアウト
+                    p.mesh.material.opacity = (p.life / p.maxLife) * 0.8; 
+                }
+            }
+        }
+
+        let clock = new THREE.Clock();
+        function train() {
+            if (state.isLifting) return;
+            state.isLifting = true;
+            state.liftPhase = 0;
+            const xpGain = state.xpPerRep; 
+            state.exp += xpGain;
+            spawnFloatingText(`+${xpGain} XP`, 0, 0);
+
+            if (state.exp >= state.expToNext) {
+                while (state.exp >= state.expToNext) {
+                    levelUp();
+                }
+            } else {
+                updateUI();
+            }
+            saveGame();
+        }
+
+        document.getElementById('train-btn').addEventListener('click', train);
+        document.getElementById('train-btn').addEventListener('touchstart', (e) => { e.preventDefault(); train(); });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            
+            // Update Rainbow Material
+            const time = Date.now() * 0.002;
+            const hue = (time * 0.2) % 1;
+            rainbowMat.color.setHSL(hue, 1.0, 0.5);
+            rainbowMat.emissive.setHSL(hue, 1.0, 0.5);
+            
+            // Update Monochrome Flame Material (Chaos)
+            if (state.currentBarbellSkin === 'monochrome') {
+                updateChaosEffect(Date.now() * 0.001); 
+                // ★追加: カオススキンならパーティクル発生
+                spawnChaosParticles();
+            }
+
+            // 共通パルス
+            const pulse = (Math.sin(time * 3) + 1) * 0.5;
+
+            // 全体オーラのアニメーション
+            if (barbellAura && barbellAura.visible) {
+                barbellAura.material.opacity = 0.2 + (pulse * 0.3);
+                const scalePulse = 1.0 + (pulse * 0.1);
+                barbellAura.scale.set(scalePulse, 1, scalePulse);
+            }
+
+            // プレートオーラのアニメーション
+            if (plateAuraL && plateAuraL.visible) {
+                const opacity = 0.3 + (pulse * 0.4);
+                const scalePulse = 1.0 + (pulse * 0.15); 
+                plateAuraL.material.opacity = opacity;
+                plateAuraL.material.color.setHSL(hue, 1.0, 0.6); 
+                plateAuraL.scale.set(scalePulse, 1, scalePulse);
+                plateAuraR.material.opacity = opacity;
+                plateAuraR.material.color.setHSL(hue, 1.0, 0.6); 
+                plateAuraR.scale.set(scalePulse, 1, scalePulse);
+            }
+
+            // パーティクル更新
+            updateParticles(delta);
+
+            if (state.isLifting) {
+                state.liftPhase += delta * 3.0;
+                let t = state.liftPhase;
+                if (t > Math.PI) {
+                    state.isLifting = false;
+                    state.liftPhase = 0;
+                    t = 0;
+                }
+                const curlValue = Math.sin(t);
+                const baseElbow = -0.6;
+                const targetElbow = -2.3;
+                const currentRot = THREE.MathUtils.lerp(baseElbow, targetElbow, curlValue);
+                rig.elbowL.rotation.x = currentRot;
+                rig.elbowR.rotation.x = currentRot;
+                rig.spine.rotation.x = Math.sin(t) * 0.15;
+            } else {
+                muscles.chest.scale.z = (muscles.chest.scale.z * 1.0) + Math.sin(time) * 0.005;
+                rig.spine.rotation.x = Math.sin(time) * 0.02;
+            }
+            const handWorldPos = new THREE.Vector3();
+            rig.handL.updateWorldMatrix(true, false);
+            rig.handL.getWorldPosition(handWorldPos);
+            barbell.position.set(0, handWorldPos.y + 0.04, handWorldPos.z);
+            barbell.rotation.x = rig.elbowL.rotation.x * 0.3;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateBodyShape();
+        updateCharacterSkin();
+        updateUI();
+        animate();
+
+    </script>
+</body>
+</html>
