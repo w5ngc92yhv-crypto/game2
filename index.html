@@ -369,16 +369,18 @@
             level: 1,
             exp: 1,
             expToNext: 10,
-            money: 0, 
+            money: 999999, 
             xpPerRep: 1, 
             muscleScale: 1.0, 
+            liftSpeed: 1.0, 
             lastDaily: null, 
             receivedLv10Bonus: false,
             lastTimeBonus: 0, 
             hasProtein: false, 
-            currentSkin: 'default', // Body Skin ID
-            currentBarbellSkin: 'default', // Barbell Skin ID
-            unlockedBarbellSkins: ['default'], // Array of unlocked barbell skins
+            currentSkin: 'default', 
+            currentBarbellSkin: 'default', 
+            // unlockedBarbellSkins はレベル解放制になったため不要だが、互換性のため残す（ただしロジックでは使わない）
+            unlockedBarbellSkins: ['default'], 
             // Transient states
             isLifting: false,
             liftPhase: 0, 
@@ -393,11 +395,10 @@
                 const parsed = JSON.parse(savedData);
                 state = { ...state, ...parsed };
                 
-                if (parsed.hasNeonSkin && !state.unlockedBarbellSkins.includes('neon')) {
-                    state.unlockedBarbellSkins.push('neon');
-                }
-                // Check if old saves have undefined barbell skin
+                // Ensure array exists
+                if (!state.unlockedBarbellSkins) state.unlockedBarbellSkins = ['default'];
                 if (!state.currentBarbellSkin) state.currentBarbellSkin = 'default';
+                if (!state.liftSpeed) state.liftSpeed = 1.0; 
 
                 state.isLifting = false;
                 state.liftPhase = 0;
@@ -412,6 +413,7 @@
                 money: state.money,
                 xpPerRep: state.xpPerRep,
                 muscleScale: state.muscleScale,
+                liftSpeed: state.liftSpeed, 
                 lastDaily: state.lastDaily,
                 receivedLv10Bonus: state.receivedLv10Bonus,
                 lastTimeBonus: state.lastTimeBonus,
@@ -430,7 +432,7 @@
             { id: 'creatine', name: 'クレアチン', price: 2500, xpBonus: 8, desc: 'XP効率 +8' }, 
             { id: 'preworkout', name: 'プレワークアウト', price: 3000, xpBonus: 10, desc: 'XP効率 +10' }, 
             { id: 'protein', name: 'プロテイン', price: 5000, xpBonus: 0, desc: 'XP効率 ×1.1' },
-            { id: 'log_skin', name: '丸太バーベル', price: 8000, xpBonus: 0, desc: 'ワイルドだろぉ？' },
+            { id: 'doping', name: 'ドーピング', price: 10000, speedBonus: 0.2, desc: 'スピード +20%' }, // 変更: 10000円
             { id: 'trainer', name: 'パーソナルトレーナー', price: 10000, xpBonus: 50, desc: 'XP効率 +50' }, 
             { id: 'steroids', name: '謎のサプリ', price: 20000, xpBonus: 130, desc: 'XP効率 +130' }
         ];
@@ -444,15 +446,15 @@
             { id: 'alien', name: '異星人', level: 20, skinColor: 0x33cc33, shortsColor: 0x8800ff, metalness: 0.2, roughness: 0.3, emissive: 0x003300 },
             { id: 'steel', name: '鋼の肉体', level: 30, skinColor: 0xaaaaaa, shortsColor: 0x333333, metalness: 0.7, roughness: 0.2, emissive: 0x111111 },
             { id: 'gold', name: 'ゴールデン', level: 50, skinColor: 0xffcc00, shortsColor: 0xffffff, metalness: 1.0, roughness: 0.15, emissive: 0x664400 },
-            // ★追加: 霊長類最強スキン
             { id: 'saori', name: '霊長類最強', level: 100, skinColor: 0xffe0bd, shortsColor: 0xed2939, metalness: 0.2, roughness: 0.4, emissive: 0x110000 }
         ];
 
+        // 変更: バーベルスキンをレベル解放制に変更
         const barbellSkins = [
-            { id: 'default', name: '鉄の塊', type: 'metal' },
-            { id: 'log', name: '丸太', type: 'log', price: 8000 },
-            { id: 'neon', name: 'ネオン', type: 'neon', price: 5000 }, 
-            { id: 'gold', name: '黄金のバーベル', type: 'gold', level: 40 },
+            { id: 'default', name: '鉄の塊', type: 'metal', level: 1 },
+            { id: 'log', name: '丸太', type: 'log', level: 15 },
+            { id: 'neon', name: 'ネオン', type: 'neon', level: 30 }, 
+            { id: 'gold', name: '黄金のバーベル', type: 'gold', level: 50 },
             { id: 'rainbow', name: 'ゲーミング', type: 'rainbow', level: 70 },
             { id: 'monochrome', name: 'カオス', type: 'monochrome', level: 90 }
         ];
@@ -821,11 +823,10 @@
             color: 0xffffff, metalness: 0.8, roughness: 0.1, emissiveIntensity: 0.8
         });
         // Log/Wood Material
-        const logBarMat = new THREE.MeshStandardMaterial({ 
-            color: 0x8d6e63, metalness: 0.0, roughness: 1.0 
-        });
-        const logPlateMat = new THREE.MeshStandardMaterial({ 
-            color: 0x5d4037, metalness: 0.0, roughness: 1.0 
+        const logMat = new THREE.MeshStandardMaterial({ 
+            color: 0x6d4c41, // 濃い茶色
+            roughness: 1.0, 
+            metalness: 0.0
         });
         
         // Monochrome Flame Material
@@ -1072,77 +1073,86 @@
 
         // --- Equipment ---
         let barbell;
-        let barbellAura; // 全体オーラ用（ネオン・ゴールド・丸太）
-        let plateAuraL, plateAuraR; // プレートオーラ用（ゲーミング）
+        let barbellAura; 
+        let plateAuraL, plateAuraR;
+        let barbellGroup; // 通常バーベル用グループ
+        let logMesh; // 丸太用メッシュ
 
         function updateBarbellSkin() {
-            if (!barbell) return;
+            if (!barbellGroup || !logMesh) return;
             
-            // 全オーラを一旦非表示
+            // オーラの初期化
             if (barbellAura) barbellAura.visible = false;
             if (plateAuraL) plateAuraL.visible = false;
             if (plateAuraR) plateAuraR.visible = false;
 
-            if (state.currentBarbellSkin !== 'default') {
-                // スキンごとのオーラ設定
+            // 表示切り替え: 丸太かどうか
+            if (state.currentBarbellSkin === 'log') {
+                logMesh.visible = true;
+                barbellGroup.visible = false;
+                // 丸太用オーラ
+                if(barbellAura) {
+                    barbellAura.visible = true;
+                    barbellAura.material.color.setHex(0x4caf50);
+                }
+            } else {
+                logMesh.visible = false;
+                barbellGroup.visible = true;
+
+                // 通常バーベルのマテリアル更新
+                barbellGroup.traverse((child) => {
+                    if (child.isMesh && child !== barbellAura && child !== plateAuraL && child !== plateAuraR) {
+                        const radius = child.geometry.parameters.radiusTop;
+                        const isBar = radius < 0.05;
+                        
+                        if (state.currentBarbellSkin === 'neon') {
+                            child.material = isBar ? neonBarMat : neonPlateMat;
+                        } else if (state.currentBarbellSkin === 'gold') {
+                            child.material = goldMat;
+                        } else if (state.currentBarbellSkin === 'rainbow') {
+                            child.material = rainbowMat;
+                        } else if (state.currentBarbellSkin === 'monochrome') { 
+                            child.material = monochromeMat;
+                        } else {
+                            // Default
+                            child.material = isBar ? metalMat : blackMat;
+                        }
+                    }
+                });
+
+                // 通常バーベルのオーラ設定
                 switch(state.currentBarbellSkin) {
                     case 'neon':
-                        // オーラ削除
+                        // オーラ削除済み
                         break;
                     case 'gold':
-                        // オーラ削除
-                        break;
-                    case 'log':
-                        // オーラ削除
+                        // オーラ削除済み
                         break;
                     case 'rainbow':
-                        // ゲーミングはプレートのみオーラ表示
                         if(plateAuraL && plateAuraR) {
                             plateAuraL.visible = true;
                             plateAuraR.visible = true;
-                            // 色はanimateループで更新
                         }
                         break;
                     case 'monochrome':
-                        // カオスは独自のパーティクルとテクスチャアニメーションを使用（オーラメッシュは不要）
                         break;
                 }
             }
-
-            barbell.traverse((child) => {
-                // オーラ用メッシュはマテリアル変更の対象外にする
-                if (child === barbellAura || child === plateAuraL || child === plateAuraR) return;
-
-                if (child.isMesh) {
-                    const radius = child.geometry.parameters.radiusTop;
-                    const isBar = radius < 0.05;
-                    
-                    if (state.currentBarbellSkin === 'neon') {
-                        child.material = isBar ? neonBarMat : neonPlateMat;
-                    } else if (state.currentBarbellSkin === 'gold') {
-                        child.material = goldMat;
-                    } else if (state.currentBarbellSkin === 'rainbow') {
-                        child.material = rainbowMat;
-                    } else if (state.currentBarbellSkin === 'log') {
-                        child.material = isBar ? logBarMat : logPlateMat;
-                    } else if (state.currentBarbellSkin === 'monochrome') { 
-                        child.material = monochromeMat;
-                    } else {
-                        // Default
-                        child.material = isBar ? metalMat : blackMat;
-                    }
-                }
-            });
         }
 
         function createEquipment() {
-            const barGroup = new THREE.Group();
+            const rootGroup = new THREE.Group();
+            barbell = rootGroup; // アニメーション用に参照を保持
+
+            // --- 1. 通常のバーベル ---
+            barbellGroup = new THREE.Group();
+            rootGroup.add(barbellGroup);
             
             const barGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.8, 8);
             barGeo.rotateZ(Math.PI / 2);
             const bar = new THREE.Mesh(barGeo, metalMat);
             bar.castShadow = true;
-            barGroup.add(bar);
+            barbellGroup.add(bar);
 
             function addPlate(x, scale) {
                 const plateGeo = new THREE.CylinderGeometry(0.22 * scale, 0.22 * scale, 0.04, 24);
@@ -1150,12 +1160,12 @@
                 const plate = new THREE.Mesh(plateGeo, blackMat);
                 plate.position.x = x;
                 plate.castShadow = true;
-                barGroup.add(plate);
+                barbellGroup.add(plate);
                 const rimGeo = new THREE.CylinderGeometry(0.23 * scale, 0.23 * scale, 0.015, 24);
                 rimGeo.rotateZ(Math.PI / 2);
                 const rim = new THREE.Mesh(rimGeo, blackMat);
                 rim.position.x = x > 0 ? x + 0.02 : x - 0.02;
-                barGroup.add(rim);
+                barbellGroup.add(rim);
             }
 
             addPlate(0.55, 1);
@@ -1163,7 +1173,7 @@
             addPlate(0.65, 0.85);
             addPlate(-0.65, 0.85);
 
-            // 全体オーラメッシュ (円柱)
+            // オーラ (通常バーベル用)
             const auraGeo = new THREE.CylinderGeometry(0.35, 0.35, 2.2, 32, 1, true);
             const auraMat = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
@@ -1176,9 +1186,8 @@
             barbellAura = new THREE.Mesh(auraGeo, auraMat);
             barbellAura.rotation.z = Math.PI / 2;
             barbellAura.visible = false;
-            barGroup.add(barbellAura);
+            barbellGroup.add(barbellAura);
 
-            // プレート限定オーラメッシュ (左右の円柱)
             const pAuraGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.4, 32, 1, true);
             const pAuraMat = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
@@ -1188,19 +1197,28 @@
                 side: THREE.DoubleSide,
                 depthWrite: false
             });
-            
             plateAuraL = new THREE.Mesh(pAuraGeo, pAuraMat);
             plateAuraL.rotation.z = Math.PI / 2;
-            plateAuraL.position.x = 0.6; // 左プレート位置
-            barGroup.add(plateAuraL);
+            plateAuraL.position.x = 0.6;
+            barbellGroup.add(plateAuraL);
 
-            plateAuraR = new THREE.Mesh(pAuraGeo, pAuraMat.clone()); // マテリアル複製して個別に制御可能に
+            plateAuraR = new THREE.Mesh(pAuraGeo, pAuraMat.clone());
             plateAuraR.rotation.z = Math.PI / 2;
-            plateAuraR.position.x = -0.6; // 右プレート位置
-            barGroup.add(plateAuraR);
+            plateAuraR.position.x = -0.6;
+            barbellGroup.add(plateAuraR);
 
-            scene.add(barGroup);
-            barbell = barGroup;
+
+            // --- 2. 丸太 (Log) ---
+            // 太い円柱を作成して丸太に見立てる
+            const logGeo = new THREE.CylinderGeometry(0.18, 0.18, 2.0, 12);
+            logGeo.rotateZ(Math.PI / 2);
+            logMesh = new THREE.Mesh(logGeo, logMat);
+            logMesh.castShadow = true;
+            logMesh.visible = false; // 初期は非表示
+            rootGroup.add(logMesh);
+
+
+            scene.add(rootGroup);
             updateBarbellSkin();
         }
 
@@ -1276,13 +1294,21 @@
             muscles.calfR.scale.set(calfThickness, 1, calfThickness);
             muscles.neck.scale.set(1 + (s-1)*0.7, 1, 1 + (s-1)*0.7);
             muscles.abs.scale.set(1.0 + (s-1)*0.5, 1, 0.8 + (s-1)*0.4);
-            if(barbell) {
-                barbell.children.forEach((child, idx) => {
-                    if (idx > 0) { 
-                        const plateScale = 1 + (state.level * 0.05);
-                        child.scale.set(1, plateScale, plateScale);
+            if(barbellGroup) { // Barbell logic updated for group
+                barbellGroup.children.forEach((child) => {
+                    // プレートのみスケール (MeshかつCylinderかつ半径が大きいもの)
+                    if (child.isMesh && child.geometry.type === 'CylinderGeometry') {
+                         if (child.geometry.parameters.radiusTop > 0.05) {
+                            const plateScale = 1 + (state.level * 0.05);
+                            child.scale.set(1, plateScale, plateScale);
+                         }
                     }
                 });
+            }
+            // 丸太も少し太くする？
+            if (logMesh) {
+                const logScale = 1 + (state.level * 0.02);
+                logMesh.scale.set(1, logScale, logScale);
             }
         }
 
@@ -1379,47 +1405,34 @@
         function renderBarbellSkins() {
             skinItemsContainer.innerHTML = '';
             barbellSkins.forEach(skin => {
-                // Check unlock conditions
-                let isUnlocked = false;
-                if (skin.id === 'default') isUnlocked = true;
-                else if (skin.level && state.level >= skin.level) isUnlocked = true;
-                else if (state.unlockedBarbellSkins.includes(skin.id)) isUnlocked = true;
-
+                // Check unlock conditions based on level
+                let isUnlocked = state.level >= skin.level;
                 const isSelected = state.currentBarbellSkin === skin.id;
                 
                 const el = document.createElement('div');
                 el.className = 'skin-item';
                 
                 let btnText = "選択";
-                let btnClass = "select-btn";
-                let action = `selectBarbellSkin('${skin.id}')`;
-                let noteText = "";
+                let noteText = `Lv.${skin.level}で解放`;
                 let isDisabled = false;
 
                 if (isSelected) {
                     btnText = "選択中";
-                    btnClass += " active";
                     isDisabled = true;
                 } else if (!isUnlocked) {
-                    if (skin.level) {
-                        noteText = `Lv.${skin.level}で解放`;
-                        btnText = "未解放";
-                        isDisabled = true;
-                    } else if (skin.price) {
-                        // Purchase logic
-                        btnText = `${skin.price.toLocaleString()}円`;
-                        btnClass = "buy-btn"; 
-                        action = `buyBarbellSkin('${skin.id}')`;
-                        if (state.money < skin.price) isDisabled = true;
-                    }
+                    btnText = "未解放";
+                    isDisabled = true;
                 }
+
+                // Selected styling
+                const btnClass = isSelected ? 'select-btn active' : 'select-btn';
 
                 el.innerHTML = `
                     <div>
                         <div class="font-bold text-yellow-200">${skin.name}</div>
                         <div class="text-xs text-gray-400">${noteText}</div>
                     </div>
-                    <button class="${btnClass}" onclick="${action}" ${isDisabled ? 'disabled' : ''}>
+                    <button class="${btnClass}" onclick="selectBarbellSkin('${skin.id}')" ${isDisabled ? 'disabled' : ''}>
                         ${btnText}
                     </button>
                 `;
@@ -1439,27 +1452,12 @@
         };
 
         window.selectBarbellSkin = function(id) {
-            if (state.unlockedBarbellSkins.includes(id) || id === 'default' || (barbellSkins.find(s=>s.id===id).level && state.level >= barbellSkins.find(s=>s.id===id).level)) {
+            const skin = barbellSkins.find(s => s.id === id);
+            if (skin && state.level >= skin.level) {
                 state.currentBarbellSkin = id;
                 updateBarbellSkin();
                 spawnFloatingText("バーベル変更！", 0, -50);
                 saveGame();
-                renderBarbellSkins();
-            }
-        };
-
-        window.buyBarbellSkin = function(id) {
-            const skin = barbellSkins.find(s => s.id === id);
-            if (skin && state.money >= skin.price) {
-                state.money -= skin.price;
-                if (!state.unlockedBarbellSkins.includes(id)) {
-                    state.unlockedBarbellSkins.push(id);
-                }
-                state.currentBarbellSkin = id;
-                updateBarbellSkin();
-                spawnFloatingText("購入＆装備！", 0, -50);
-                saveGame();
-                updateUI();
                 renderBarbellSkins();
             }
         };
@@ -1546,6 +1544,9 @@
                 if (id === 'protein') {
                     state.xpPerRep = Math.ceil(state.xpPerRep * 1.1);
                     state.hasProtein = true;
+                } else if (id === 'doping') { // ★追加: ドーピング購入処理
+                    state.liftSpeed += item.speedBonus;
+                    item.price = Math.floor(item.price * 1.5); // インフレ
                 } else {
                     state.xpPerRep += item.xpBonus;
                     item.price = Math.floor(item.price * 1.5);
@@ -1709,7 +1710,10 @@
             updateParticles(delta);
 
             if (state.isLifting) {
-                state.liftPhase += delta * 3.0;
+                // ★変更: 速度倍率 (liftSpeed) を適用
+                // 基本速度 3.0 * 倍率
+                state.liftPhase += delta * 3.0 * state.liftSpeed;
+
                 let t = state.liftPhase;
                 if (t > Math.PI) {
                     state.isLifting = false;
